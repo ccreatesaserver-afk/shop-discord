@@ -1,0 +1,1221 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DiscordForge | חנות בוטים וטמפלייטים</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;500;600;700&family=Orbitron:wght@400;700;900&family=Noto+Sans+Hebrew:wght@300;400;600;700&display=swap" rel="stylesheet">
+
+<!-- Firebase -->
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.0/firebase-app.js";
+  import { getDatabase, ref, onValue, push, set, get } from "https://www.gstatic.com/firebasejs/10.7.0/firebase-database.js";
+  import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.7.0/firebase-auth.js";
+
+  const firebaseConfig = {
+    apiKey: "AIzaSyANcW5T6CCHZEQNJRVh-2I4t0VCxwDiHxA",
+    authDomain: "school-librar.firebaseapp.com",
+    databaseURL: "https://school-librar-default-rtdb.asia-southeast1.firebasedatabase.app",
+    projectId: "school-librar",
+    storageBucket: "school-librar.firebasestorage.app",
+    messagingSenderId: "476487290233",
+    appId: "1:476487290233:web:8f0f3ca196c6d4c783b3a8",
+    measurementId: "G-6S95GVZKLV"
+  };
+
+  const app = initializeApp(firebaseConfig);
+  const db = getDatabase(app);
+  const auth = getAuth(app);
+
+  let currentUser = null;
+  let allProducts = [];
+
+  // Default products if none in Firebase
+  const defaultProducts = [
+    {
+      id: "bot-moderation-pro",
+      name: "MegaGuard Pro",
+      type: "bot",
+      category: "moderation",
+      price: 29,
+      currency: "₪",
+      description: "בוט מודרציה עוצמתי עם AI, פילטרים אוטומטיים, ניהול באנים ועוד 50+ פיצ'רים מתקדמים",
+      features: ["AI Anti-Spam", "Auto-Ban", "פילטר שפה", "לוגים מלאים", "מערכת ענישה"],
+      badge: "🔥 הכי נמכר",
+      color: "#ff4444",
+      icon: "🛡️",
+      downloadLink: "https://discord.com/oauth2/authorize?client_id=MEGAGUARD&scope=bot&permissions=8"
+    },
+    {
+      id: "bot-music-ultimate",
+      name: "SoundWave Ultimate",
+      type: "bot",
+      category: "music",
+      price: 19,
+      currency: "₪",
+      description: "בוט מוזיקה עם איכות קול HD, Spotify/YouTube/SoundCloud, אפקטים ו-24/7",
+      features: ["Spotify Connect", "YouTube HD", "Bass Boost", "24/7 Mode", "Queue מתקדם"],
+      badge: "🎵 פופולרי",
+      color: "#5865F2",
+      icon: "🎵",
+      downloadLink: "https://discord.com/oauth2/authorize?client_id=SOUNDWAVE&scope=bot&permissions=8"
+    },
+    {
+      id: "bot-economy",
+      name: "RichBot Economy",
+      type: "bot",
+      category: "economy",
+      price: 39,
+      currency: "₪",
+      description: "מערכת כלכלה מלאה לשרת - מטבעות, חנות, עבודות, קזינו ומכרזים",
+      features: ["מטבעות מותאמים", "חנות פנימית", "קזינו", "מכרזים", "לידרבורד"],
+      badge: "💰 חדש",
+      color: "#ffd700",
+      icon: "💰",
+      downloadLink: "https://discord.com/oauth2/authorize?client_id=RICHBOT&scope=bot&permissions=8"
+    },
+    {
+      id: "template-gaming",
+      name: "Gaming Hub Template",
+      type: "template",
+      category: "gaming",
+      price: 15,
+      currency: "₪",
+      description: "טמפלייט שרת גיימינג מקצועי עם ערוצים מסודרים, תפקידים ובוטים מוגדרים",
+      features: ["50+ ערוצים", "20+ תפקידים", "בוטים מוגדרים", "כללים", "אזורי גיים"],
+      badge: "🎮 גיימינג",
+      color: "#00ff88",
+      icon: "🎮",
+      downloadLink: "https://discord.new/GAMING-TEMPLATE-CODE"
+    },
+    {
+      id: "template-community",
+      name: "Community Pro Template",
+      type: "template",
+      category: "community",
+      price: 12,
+      currency: "₪",
+      description: "טמפלייט קהילה מקצועי עם מערכת תפקידים, ברוך הבא, טיקטים ועוד",
+      features: ["ברוך הבא מעוצב", "מערכת תפקידים", "טיקט סאפורט", "אירועים", "Partnerships"],
+      badge: "👥 קהילה",
+      color: "#eb459e",
+      icon: "👥",
+      downloadLink: "https://discord.new/COMMUNITY-TEMPLATE-CODE"
+    },
+    {
+      id: "bundle-ultimate",
+      name: "Ultimate Bundle",
+      type: "bundle",
+      category: "bundle",
+      price: 79,
+      currency: "₪",
+      description: "כל הבוטים + כל הטמפלייטים + תמיכה אישית + עדכונים לכל החיים!",
+      features: ["כל הבוטים", "כל הטמפלייטים", "תמיכה 24/7", "עדכונים Forever", "הגדרה חינם"],
+      badge: "⭐ מומלץ",
+      color: "#ff8c00",
+      icon: "⚡",
+      downloadLink: "https://discord.gg/SUPPORT-SERVER"
+    }
+  ];
+
+  // Load products from Firebase
+  function loadProducts() {
+    const productsRef = ref(db, 'products');
+    onValue(productsRef, (snapshot) => {
+      const data = snapshot.val();
+      if (data) {
+        allProducts = Object.entries(data).map(([key, val]) => ({ id: key, ...val }));
+      } else {
+        // Load defaults into Firebase
+        allProducts = defaultProducts;
+        defaultProducts.forEach(p => {
+          set(ref(db, `products/${p.id}`), p);
+        });
+      }
+      renderProducts(allProducts);
+    });
+  }
+
+  function renderProducts(products) {
+    const grid = document.getElementById('productsGrid');
+    if (!grid) return;
+    grid.innerHTML = '';
+    products.forEach(p => {
+      const card = document.createElement('div');
+      card.className = 'product-card';
+      card.style.setProperty('--accent', p.color || '#5865F2');
+      card.innerHTML = `
+        <div class="card-glow"></div>
+        <div class="card-badge">${p.badge || ''}</div>
+        <div class="card-icon">${p.icon || '🤖'}</div>
+        <div class="card-type">${p.type === 'bot' ? '🤖 בוט' : p.type === 'template' ? '📋 טמפלייט' : '⚡ חבילה'}</div>
+        <h3 class="card-name">${p.name}</h3>
+        <p class="card-desc">${p.description}</p>
+        <div class="card-features">
+          ${(p.features || []).slice(0, 3).map(f => `<span class="feature-tag">✓ ${f}</span>`).join('')}
+        </div>
+        <div class="card-footer">
+          <div class="card-price">${p.currency || '₪'}${p.price}</div>
+          <button class="buy-btn" onclick="window.buyProduct('${p.id}', '${p.name}', ${p.price}, '${p.currency || "₪"}')">
+            <span>רכוש עכשיו</span>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+          </button>
+        </div>
+      `;
+      grid.appendChild(card);
+    });
+  }
+
+  // Auth handlers
+  window.registerUser = async function() {
+    const email = document.getElementById('regEmail').value;
+    const password = document.getElementById('regPassword').value;
+    const username = document.getElementById('regUsername').value;
+    const discordId = document.getElementById('regDiscordId').value;
+    try {
+      const cred = await createUserWithEmailAndPassword(auth, email, password);
+      await set(ref(db, `users/${cred.user.uid}`), {
+        username, email, discordId,
+        role: 'user',
+        createdAt: Date.now(),
+        purchases: []
+      });
+      showNotification('✅ נרשמת בהצלחה! ברוך הבא!', 'success');
+      closeModal('registerModal');
+    } catch (e) {
+      showNotification('❌ שגיאה: ' + e.message, 'error');
+    }
+  };
+
+  window.loginUser = async function() {
+    const email = document.getElementById('loginEmail').value;
+    const password = document.getElementById('loginPassword').value;
+    try {
+      await signInWithEmailAndPassword(auth, email, password);
+      showNotification('✅ התחברת בהצלחה!', 'success');
+      closeModal('loginModal');
+    } catch (e) {
+      showNotification('❌ אימייל או סיסמה שגויים', 'error');
+    }
+  };
+
+  window.logoutUser = async function() {
+    await signOut(auth);
+    showNotification('👋 התנתקת בהצלחה', 'info');
+  };
+
+  window.buyProduct = async function(productId, productName, price, currency) {
+    if (!currentUser) {
+      showNotification('🔒 יש להתחבר לפני רכישה', 'warning');
+      openModal('loginModal');
+      return;
+    }
+    // Get product
+    const productSnap = await get(ref(db, `products/${productId}`));
+    const product = productSnap.val();
+    if (!product) return;
+
+    // Open purchase modal
+    document.getElementById('purchaseProductName').textContent = productName;
+    document.getElementById('purchasePrice').textContent = currency + price;
+    document.getElementById('confirmPurchaseBtn').onclick = () => completePurchase(productId, product);
+    openModal('purchaseModal');
+  };
+
+  async function completePurchase(productId, product) {
+    try {
+      const purchaseId = 'PUR-' + Date.now();
+      const purchaseData = {
+        productId,
+        productName: product.name,
+        price: product.price,
+        currency: product.currency || '₪',
+        downloadLink: product.downloadLink,
+        userId: currentUser.uid,
+        userEmail: currentUser.email,
+        timestamp: Date.now(),
+        status: 'completed'
+      };
+      // Save purchase to Firebase
+      await set(ref(db, `purchases/${purchaseId}`), purchaseData);
+      // Add to user's purchases
+      await push(ref(db, `users/${currentUser.uid}/purchases`), purchaseId);
+
+      closeModal('purchaseModal');
+      
+      // Show download link
+      document.getElementById('downloadProductName').textContent = product.name;
+      document.getElementById('downloadLink').href = product.downloadLink;
+      document.getElementById('downloadLink').textContent = product.downloadLink;
+      document.getElementById('purchaseId').textContent = purchaseId;
+      openModal('successModal');
+      showNotification('🎉 רכישה הושלמה!', 'success');
+    } catch(e) {
+      showNotification('❌ שגיאה ברכישה: ' + e.message, 'error');
+    }
+  }
+
+  onAuthStateChanged(auth, async (user) => {
+    currentUser = user;
+    const authBtns = document.getElementById('authButtons');
+    const userInfo = document.getElementById('userInfo');
+    if (user) {
+      authBtns.style.display = 'none';
+      userInfo.style.display = 'flex';
+      const snap = await get(ref(db, `users/${user.uid}`));
+      const userData = snap.val();
+      document.getElementById('userDisplayName').textContent = userData?.username || user.email;
+    } else {
+      authBtns.style.display = 'flex';
+      userInfo.style.display = 'none';
+    }
+  });
+
+  // Filter products
+  window.filterProducts = function(category) {
+    document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+    event.target.classList.add('active');
+    if (category === 'all') renderProducts(allProducts);
+    else renderProducts(allProducts.filter(p => p.type === category || p.category === category));
+  };
+
+  // Modal helpers
+  window.openModal = function(id) {
+    document.getElementById(id).classList.add('open');
+    document.body.style.overflow = 'hidden';
+  };
+  window.closeModal = function(id) {
+    document.getElementById(id).classList.remove('open');
+    document.body.style.overflow = '';
+  };
+
+  function showNotification(msg, type) {
+    const n = document.createElement('div');
+    n.className = `notification ${type}`;
+    n.textContent = msg;
+    document.body.appendChild(n);
+    setTimeout(() => n.classList.add('show'), 10);
+    setTimeout(() => { n.classList.remove('show'); setTimeout(() => n.remove(), 400); }, 3500);
+  }
+  window.showNotification = showNotification;
+
+  // Init
+  window.addEventListener('DOMContentLoaded', () => {
+    loadProducts();
+    createParticles();
+  });
+
+  function createParticles() {
+    const canvas = document.getElementById('particleCanvas');
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+    const particles = Array.from({length: 80}, () => ({
+      x: Math.random() * canvas.width,
+      y: Math.random() * canvas.height,
+      vx: (Math.random() - 0.5) * 0.5,
+      vy: (Math.random() - 0.5) * 0.5,
+      r: Math.random() * 2 + 0.5,
+      alpha: Math.random() * 0.5 + 0.1,
+      color: ['#5865F2','#eb459e','#00ff88','#ffd700'][Math.floor(Math.random()*4)]
+    }));
+    function animate() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      particles.forEach(p => {
+        p.x += p.vx; p.y += p.vy;
+        if (p.x < 0) p.x = canvas.width;
+        if (p.x > canvas.width) p.x = 0;
+        if (p.y < 0) p.y = canvas.height;
+        if (p.y > canvas.height) p.y = 0;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+        ctx.fillStyle = p.color + Math.floor(p.alpha * 255).toString(16).padStart(2,'0');
+        ctx.fill();
+      });
+      requestAnimationFrame(animate);
+    }
+    animate();
+    window.addEventListener('resize', () => { canvas.width = window.innerWidth; canvas.height = window.innerHeight; });
+  }
+</script>
+
+<style>
+:root {
+  --discord: #5865F2;
+  --discord-dark: #4752c4;
+  --bg: #0a0b0f;
+  --bg2: #0f1117;
+  --bg3: #141720;
+  --surface: #1a1d2e;
+  --surface2: #1e2235;
+  --border: rgba(88, 101, 242, 0.2);
+  --text: #e8eaf0;
+  --text-muted: #8b8fa8;
+  --accent: #5865F2;
+  --green: #00ff88;
+  --pink: #eb459e;
+  --gold: #ffd700;
+  --red: #ff4444;
+  --glow: 0 0 20px rgba(88, 101, 242, 0.4);
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+
+body {
+  font-family: 'Noto Sans Hebrew', sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+/* Particle canvas */
+#particleCanvas {
+  position: fixed; top: 0; left: 0;
+  width: 100%; height: 100%;
+  pointer-events: none; z-index: 0;
+  opacity: 0.4;
+}
+
+/* Scanlines overlay */
+body::before {
+  content: '';
+  position: fixed; inset: 0;
+  background: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,0,0,0.03) 2px, rgba(0,0,0,0.03) 4px);
+  pointer-events: none; z-index: 1;
+}
+
+/* Navbar */
+.navbar {
+  position: fixed; top: 0; left: 0; right: 0;
+  z-index: 100;
+  background: rgba(10, 11, 15, 0.85);
+  backdrop-filter: blur(20px);
+  border-bottom: 1px solid var(--border);
+  padding: 0 2rem;
+  height: 65px;
+  display: flex; align-items: center; justify-content: space-between;
+}
+
+.nav-logo {
+  display: flex; align-items: center; gap: 12px;
+  font-family: 'Orbitron', sans-serif;
+  font-size: 1.4rem; font-weight: 900;
+  color: var(--discord);
+  text-shadow: 0 0 20px rgba(88,101,242,0.6);
+  text-decoration: none;
+}
+
+.nav-logo .logo-icon {
+  width: 38px; height: 38px;
+  background: linear-gradient(135deg, var(--discord), var(--pink));
+  border-radius: 10px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 1.2rem;
+  box-shadow: 0 0 15px rgba(88,101,242,0.5);
+}
+
+.nav-links {
+  display: flex; align-items: center; gap: 2rem;
+  list-style: none;
+}
+
+.nav-links a {
+  color: var(--text-muted);
+  text-decoration: none;
+  font-weight: 500;
+  transition: color 0.2s;
+  font-size: 0.95rem;
+}
+.nav-links a:hover { color: var(--text); }
+
+.nav-right {
+  display: flex; align-items: center; gap: 1rem;
+}
+
+#authButtons { display: flex; gap: 0.8rem; }
+#userInfo { display: none; align-items: center; gap: 1rem; }
+
+.user-avatar {
+  width: 36px; height: 36px;
+  background: linear-gradient(135deg, var(--discord), var(--pink));
+  border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 1rem; font-weight: 700;
+}
+
+/* Buttons */
+.btn {
+  padding: 0.5rem 1.2rem;
+  border-radius: 8px;
+  border: none;
+  cursor: pointer;
+  font-family: 'Noto Sans Hebrew', sans-serif;
+  font-weight: 600;
+  font-size: 0.9rem;
+  transition: all 0.2s;
+  position: relative;
+  overflow: hidden;
+}
+
+.btn-primary {
+  background: var(--discord);
+  color: white;
+  box-shadow: 0 0 15px rgba(88,101,242,0.3);
+}
+.btn-primary:hover {
+  background: var(--discord-dark);
+  box-shadow: 0 0 25px rgba(88,101,242,0.5);
+  transform: translateY(-1px);
+}
+
+.btn-outline {
+  background: transparent;
+  color: var(--text);
+  border: 1px solid var(--border);
+}
+.btn-outline:hover {
+  border-color: var(--discord);
+  color: var(--discord);
+  background: rgba(88,101,242,0.1);
+}
+
+.btn-danger { background: var(--red); color: white; }
+.btn-danger:hover { background: #cc0000; }
+
+/* Hero */
+.hero {
+  min-height: 100vh;
+  display: flex; align-items: center; justify-content: center;
+  text-align: center;
+  padding: 6rem 2rem 4rem;
+  position: relative; z-index: 2;
+}
+
+.hero-content { max-width: 800px; }
+
+.hero-badge {
+  display: inline-flex; align-items: center; gap: 8px;
+  background: rgba(88,101,242,0.15);
+  border: 1px solid rgba(88,101,242,0.3);
+  border-radius: 50px;
+  padding: 0.4rem 1.2rem;
+  font-size: 0.85rem;
+  color: var(--discord);
+  margin-bottom: 2rem;
+  animation: pulse-border 2s ease-in-out infinite;
+}
+
+@keyframes pulse-border {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(88,101,242,0.3); }
+  50% { box-shadow: 0 0 0 8px rgba(88,101,242,0); }
+}
+
+.hero h1 {
+  font-family: 'Orbitron', sans-serif;
+  font-size: clamp(2.5rem, 6vw, 5rem);
+  font-weight: 900;
+  line-height: 1.1;
+  margin-bottom: 1.5rem;
+  background: linear-gradient(135deg, #fff 0%, var(--discord) 50%, var(--pink) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  filter: drop-shadow(0 0 30px rgba(88,101,242,0.4));
+}
+
+.hero-sub {
+  font-size: 1.2rem;
+  color: var(--text-muted);
+  line-height: 1.7;
+  margin-bottom: 2.5rem;
+  max-width: 600px;
+  margin-left: auto; margin-right: auto;
+}
+
+.hero-cta {
+  display: flex; gap: 1rem; justify-content: center; flex-wrap: wrap;
+}
+
+.btn-hero {
+  padding: 0.9rem 2.5rem;
+  border-radius: 12px;
+  border: none;
+  cursor: pointer;
+  font-size: 1rem;
+  font-weight: 700;
+  font-family: 'Noto Sans Hebrew', sans-serif;
+  transition: all 0.3s;
+}
+
+.btn-hero-primary {
+  background: linear-gradient(135deg, var(--discord), var(--pink));
+  color: white;
+  box-shadow: 0 4px 30px rgba(88,101,242,0.4);
+}
+.btn-hero-primary:hover {
+  transform: translateY(-3px) scale(1.02);
+  box-shadow: 0 8px 40px rgba(88,101,242,0.6);
+}
+
+.btn-hero-secondary {
+  background: rgba(255,255,255,0.05);
+  color: var(--text);
+  border: 1px solid var(--border);
+}
+.btn-hero-secondary:hover {
+  background: rgba(255,255,255,0.1);
+  transform: translateY(-3px);
+}
+
+/* Stats bar */
+.stats-bar {
+  position: relative; z-index: 2;
+  background: var(--surface);
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+  padding: 1.5rem 2rem;
+  display: flex; justify-content: center; gap: 4rem; flex-wrap: wrap;
+}
+
+.stat-item { text-align: center; }
+.stat-value {
+  font-family: 'Orbitron', sans-serif;
+  font-size: 1.8rem;
+  font-weight: 700;
+  color: var(--discord);
+  text-shadow: 0 0 15px rgba(88,101,242,0.5);
+}
+.stat-label { font-size: 0.8rem; color: var(--text-muted); margin-top: 4px; }
+
+/* Products section */
+.section {
+  position: relative; z-index: 2;
+  padding: 5rem 2rem;
+  max-width: 1300px;
+  margin: 0 auto;
+}
+
+.section-header {
+  text-align: center;
+  margin-bottom: 3rem;
+}
+
+.section-header h2 {
+  font-family: 'Orbitron', sans-serif;
+  font-size: 2.2rem;
+  font-weight: 700;
+  color: var(--text);
+  margin-bottom: 0.8rem;
+}
+
+.section-header p { color: var(--text-muted); font-size: 1.05rem; }
+
+/* Filters */
+.filters {
+  display: flex; justify-content: center; gap: 0.8rem;
+  margin-bottom: 2.5rem; flex-wrap: wrap;
+}
+
+.filter-btn {
+  padding: 0.5rem 1.4rem;
+  border-radius: 50px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-family: 'Noto Sans Hebrew', sans-serif;
+  font-size: 0.9rem;
+  transition: all 0.2s;
+}
+.filter-btn:hover, .filter-btn.active {
+  background: var(--discord);
+  border-color: var(--discord);
+  color: white;
+  box-shadow: 0 0 15px rgba(88,101,242,0.4);
+}
+
+/* Products Grid */
+.products-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+  gap: 1.5rem;
+}
+
+.product-card {
+  position: relative;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 1.8rem;
+  overflow: hidden;
+  transition: all 0.3s;
+  cursor: default;
+}
+
+.product-card::before {
+  content: '';
+  position: absolute; inset: 0;
+  background: linear-gradient(135deg, var(--accent, #5865F2) 0%, transparent 60%);
+  opacity: 0.05;
+  transition: opacity 0.3s;
+}
+
+.product-card:hover {
+  transform: translateY(-5px);
+  border-color: var(--accent, #5865F2);
+  box-shadow: 0 8px 40px rgba(0,0,0,0.3), 0 0 30px color-mix(in srgb, var(--accent, #5865F2) 30%, transparent);
+}
+
+.product-card:hover::before { opacity: 0.1; }
+
+.card-glow {
+  position: absolute;
+  top: -50%; right: -50%;
+  width: 100%; height: 100%;
+  background: radial-gradient(circle, var(--accent, #5865F2) 0%, transparent 70%);
+  opacity: 0;
+  transition: opacity 0.3s;
+  pointer-events: none;
+}
+.product-card:hover .card-glow { opacity: 0.06; }
+
+.card-badge {
+  display: inline-block;
+  background: rgba(88,101,242,0.2);
+  border: 1px solid rgba(88,101,242,0.3);
+  border-radius: 20px;
+  padding: 0.2rem 0.8rem;
+  font-size: 0.75rem;
+  color: var(--discord);
+  margin-bottom: 1rem;
+}
+
+.card-icon {
+  font-size: 2.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.card-type {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  margin-bottom: 0.5rem;
+}
+
+.card-name {
+  font-family: 'Rajdhani', sans-serif;
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--text);
+  margin-bottom: 0.8rem;
+}
+
+.card-desc {
+  color: var(--text-muted);
+  font-size: 0.9rem;
+  line-height: 1.6;
+  margin-bottom: 1rem;
+}
+
+.card-features {
+  display: flex; flex-wrap: wrap; gap: 0.4rem;
+  margin-bottom: 1.5rem;
+}
+
+.feature-tag {
+  background: rgba(255,255,255,0.05);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 6px;
+  padding: 0.2rem 0.6rem;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+.card-footer {
+  display: flex; align-items: center; justify-content: space-between;
+}
+
+.card-price {
+  font-family: 'Orbitron', sans-serif;
+  font-size: 1.6rem;
+  font-weight: 700;
+  color: var(--accent, #5865F2);
+  text-shadow: 0 0 15px var(--accent, #5865F2);
+}
+
+.buy-btn {
+  display: flex; align-items: center; gap: 8px;
+  background: linear-gradient(135deg, var(--accent, #5865F2), color-mix(in srgb, var(--accent, #5865F2) 70%, var(--pink)));
+  color: white;
+  border: none;
+  border-radius: 10px;
+  padding: 0.6rem 1.3rem;
+  cursor: pointer;
+  font-family: 'Noto Sans Hebrew', sans-serif;
+  font-weight: 700;
+  font-size: 0.9rem;
+  transition: all 0.2s;
+}
+.buy-btn:hover {
+  transform: scale(1.05);
+  box-shadow: 0 4px 20px rgba(88,101,242,0.4);
+}
+
+/* Features section */
+.features-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 1.5rem;
+  margin-top: 3rem;
+}
+
+.feature-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 2rem;
+  text-align: center;
+  transition: all 0.3s;
+}
+.feature-card:hover {
+  border-color: var(--discord);
+  transform: translateY(-3px);
+}
+.feature-card .icon { font-size: 2.5rem; margin-bottom: 1rem; }
+.feature-card h3 { font-size: 1.1rem; margin-bottom: 0.5rem; font-weight: 700; }
+.feature-card p { color: var(--text-muted); font-size: 0.9rem; line-height: 1.6; }
+
+/* Modals */
+.modal-overlay {
+  display: none;
+  position: fixed; inset: 0;
+  background: rgba(0,0,0,0.8);
+  backdrop-filter: blur(10px);
+  z-index: 1000;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+}
+.modal-overlay.open { display: flex; }
+
+.modal {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  padding: 2.5rem;
+  width: 100%;
+  max-width: 440px;
+  position: relative;
+  animation: modalIn 0.3s ease;
+}
+
+@keyframes modalIn {
+  from { opacity: 0; transform: translateY(-20px) scale(0.95); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.modal-close {
+  position: absolute; top: 1rem; left: 1rem;
+  background: rgba(255,255,255,0.1);
+  border: none; border-radius: 50%;
+  width: 32px; height: 32px;
+  cursor: pointer; color: var(--text);
+  font-size: 1.2rem;
+  display: flex; align-items: center; justify-content: center;
+  transition: background 0.2s;
+}
+.modal-close:hover { background: rgba(255,255,255,0.2); }
+
+.modal-logo {
+  text-align: center;
+  margin-bottom: 1.5rem;
+  font-size: 2.5rem;
+}
+
+.modal h2 {
+  font-family: 'Orbitron', sans-serif;
+  font-size: 1.4rem;
+  font-weight: 700;
+  text-align: center;
+  margin-bottom: 0.5rem;
+}
+
+.modal-sub {
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 0.9rem;
+  margin-bottom: 2rem;
+}
+
+.form-group {
+  margin-bottom: 1rem;
+}
+
+.form-group label {
+  display: block;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  margin-bottom: 0.4rem;
+  font-weight: 500;
+}
+
+.form-group input {
+  width: 100%;
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 0.7rem 1rem;
+  color: var(--text);
+  font-family: 'Noto Sans Hebrew', sans-serif;
+  font-size: 0.95rem;
+  transition: border-color 0.2s;
+  text-align: right;
+}
+.form-group input:focus {
+  outline: none;
+  border-color: var(--discord);
+  box-shadow: 0 0 0 3px rgba(88,101,242,0.15);
+}
+
+.modal-submit {
+  width: 100%;
+  padding: 0.85rem;
+  margin-top: 1.5rem;
+  background: linear-gradient(135deg, var(--discord), var(--pink));
+  color: white;
+  border: none;
+  border-radius: 12px;
+  cursor: pointer;
+  font-family: 'Noto Sans Hebrew', sans-serif;
+  font-size: 1rem;
+  font-weight: 700;
+  transition: all 0.2s;
+  box-shadow: 0 4px 20px rgba(88,101,242,0.3);
+}
+.modal-submit:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 30px rgba(88,101,242,0.5);
+}
+
+.modal-switch {
+  text-align: center;
+  margin-top: 1.2rem;
+  color: var(--text-muted);
+  font-size: 0.85rem;
+}
+.modal-switch a {
+  color: var(--discord);
+  cursor: pointer;
+  font-weight: 600;
+}
+.modal-switch a:hover { text-decoration: underline; }
+
+/* Purchase modal */
+.purchase-summary {
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 1.2rem;
+  margin: 1.5rem 0;
+  text-align: center;
+}
+.purchase-name { font-size: 1.1rem; font-weight: 700; margin-bottom: 0.5rem; }
+.purchase-price-display {
+  font-family: 'Orbitron', sans-serif;
+  font-size: 2rem;
+  color: var(--discord);
+  font-weight: 700;
+  text-shadow: 0 0 15px rgba(88,101,242,0.5);
+}
+
+/* Success modal */
+.success-icon { font-size: 4rem; text-align: center; margin-bottom: 1rem; }
+.download-box {
+  background: var(--bg3);
+  border: 1px solid var(--green);
+  border-radius: 12px;
+  padding: 1.2rem;
+  margin: 1.5rem 0;
+  word-break: break-all;
+}
+.download-box a {
+  color: var(--green);
+  font-size: 0.85rem;
+}
+.purchase-id-badge {
+  font-family: 'Orbitron', sans-serif;
+  background: rgba(88,101,242,0.1);
+  border: 1px solid rgba(88,101,242,0.3);
+  border-radius: 8px;
+  padding: 0.4rem 0.8rem;
+  font-size: 0.75rem;
+  color: var(--discord);
+  text-align: center;
+  margin-top: 0.8rem;
+}
+
+/* Notifications */
+.notification {
+  position: fixed;
+  bottom: 2rem; right: 2rem;
+  background: var(--surface);
+  border-radius: 12px;
+  padding: 1rem 1.5rem;
+  font-size: 0.9rem;
+  font-weight: 600;
+  z-index: 9999;
+  border-right: 4px solid var(--discord);
+  transform: translateX(150%);
+  transition: transform 0.4s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+  max-width: 320px;
+  box-shadow: 0 10px 40px rgba(0,0,0,0.5);
+}
+.notification.show { transform: translateX(0); }
+.notification.success { border-color: var(--green); }
+.notification.error { border-color: var(--red); }
+.notification.warning { border-color: var(--gold); }
+.notification.info { border-color: var(--discord); }
+
+/* Footer */
+.footer {
+  position: relative; z-index: 2;
+  background: var(--surface);
+  border-top: 1px solid var(--border);
+  padding: 3rem 2rem 2rem;
+  text-align: center;
+}
+.footer-logo {
+  font-family: 'Orbitron', sans-serif;
+  font-size: 1.5rem;
+  color: var(--discord);
+  margin-bottom: 1rem;
+}
+.footer-text { color: var(--text-muted); font-size: 0.85rem; }
+
+@media (max-width: 768px) {
+  .nav-links { display: none; }
+  .products-grid { grid-template-columns: 1fr; }
+  .stats-bar { gap: 2rem; }
+}
+</style>
+</head>
+<body>
+<canvas id="particleCanvas"></canvas>
+
+<!-- NAVBAR -->
+<nav class="navbar">
+  <a href="#" class="nav-logo">
+    <div class="logo-icon">⚡</div>
+    DiscordForge
+  </a>
+  <ul class="nav-links">
+    <li><a href="#products">מוצרים</a></li>
+    <li><a href="#features">למה אנחנו</a></li>
+    <li><a href="#footer">צור קשר</a></li>
+  </ul>
+  <div class="nav-right">
+    <div id="authButtons">
+      <button class="btn btn-outline" onclick="openModal('loginModal')">התחברות</button>
+      <button class="btn btn-primary" onclick="openModal('registerModal')">הרשמה</button>
+    </div>
+    <div id="userInfo">
+      <div class="user-avatar">👤</div>
+      <span id="userDisplayName"></span>
+      <button class="btn btn-outline" onclick="logoutUser()">יציאה</button>
+    </div>
+  </div>
+</nav>
+
+<!-- HERO -->
+<section class="hero">
+  <div class="hero-content">
+    <div class="hero-badge">
+      <span>⚡</span>
+      <span>פלטפורמת הבוטים המובילה בישראל</span>
+    </div>
+    <h1>DiscordForge</h1>
+    <p class="hero-sub">חנות הבוטים והטמפלייטים הפרימיום ביותר לדיסקורד. שדרג את השרת שלך עם הכלים החזקים ביותר.</p>
+    <div class="hero-cta">
+      <button class="btn-hero btn-hero-primary" onclick="document.getElementById('products').scrollIntoView({behavior:'smooth'})">
+        🛒 גלה מוצרים
+      </button>
+      <button class="btn-hero btn-hero-secondary" onclick="openModal('registerModal')">
+        🚀 הצטרף בחינם
+      </button>
+    </div>
+  </div>
+</section>
+
+<!-- STATS -->
+<div class="stats-bar">
+  <div class="stat-item">
+    <div class="stat-value">500+</div>
+    <div class="stat-label">לקוחות מרוצים</div>
+  </div>
+  <div class="stat-item">
+    <div class="stat-value">6</div>
+    <div class="stat-label">מוצרים פרימיום</div>
+  </div>
+  <div class="stat-item">
+    <div class="stat-value">24/7</div>
+    <div class="stat-label">תמיכה טכנית</div>
+  </div>
+  <div class="stat-item">
+    <div class="stat-value">99.9%</div>
+    <div class="stat-label">זמינות שרת</div>
+  </div>
+</div>
+
+<!-- PRODUCTS -->
+<section class="section" id="products">
+  <div class="section-header">
+    <h2>🛒 חנות המוצרים</h2>
+    <p>בחר את הבוט או הטמפלייט המושלם לשרת שלך</p>
+  </div>
+  <div class="filters">
+    <button class="filter-btn active" onclick="filterProducts('all')">🌐 הכל</button>
+    <button class="filter-btn" onclick="filterProducts('bot')">🤖 בוטים</button>
+    <button class="filter-btn" onclick="filterProducts('template')">📋 טמפלייטים</button>
+    <button class="filter-btn" onclick="filterProducts('bundle')">⚡ חבילות</button>
+  </div>
+  <div class="products-grid" id="productsGrid">
+    <div style="text-align:center; padding: 3rem; color: var(--text-muted); grid-column: 1/-1;">⏳ טוען מוצרים...</div>
+  </div>
+</section>
+
+<!-- FEATURES -->
+<section class="section" id="features">
+  <div class="section-header">
+    <h2>⚡ למה DiscordForge?</h2>
+    <p>הסיבות שאלפי שרתים בוחרים בנו</p>
+  </div>
+  <div class="features-grid">
+    <div class="feature-card">
+      <div class="icon">⚡</div>
+      <h3>קישור מיידי</h3>
+      <p>לאחר רכישה מקבלים קישור ישיר מיידי להתקנת הבוט/טמפלייט ללא עיכוב</p>
+    </div>
+    <div class="feature-card">
+      <div class="icon">🔒</div>
+      <h3>רכישה מאובטחת</h3>
+      <p>כל הרכישות מאובטחות ומוצפנות עם אחריות מלאה על המוצרים שלנו</p>
+    </div>
+    <div class="feature-card">
+      <div class="icon">🛠️</div>
+      <h3>תמיכה מלאה</h3>
+      <p>צוות תמיכה מקצועי זמין 24/7 לעזור לך עם כל שאלה או בעיה</p>
+    </div>
+    <div class="feature-card">
+      <div class="icon">🔄</div>
+      <h3>עדכונים שוטפים</h3>
+      <p>כל הבוטים מקבלים עדכונים שוטפים עם פיצ'רים חדשים ושיפורי ביצועים</p>
+    </div>
+    <div class="feature-card">
+      <div class="icon">🎮</div>
+      <h3>עיצוב גיימרי</h3>
+      <p>כל המוצרים מותאמים לסגנון גיימינג עם עיצוב מרהיב ופונקציונליות מלאה</p>
+    </div>
+    <div class="feature-card">
+      <div class="icon">💳</div>
+      <h3>מחירים הוגנים</h3>
+      <p>מחירים תחרותיים עם אפשרות לחבילות משולבות לחיסכון מקסימלי</p>
+    </div>
+  </div>
+</section>
+
+<!-- FOOTER -->
+<footer class="footer" id="footer">
+  <div class="footer-logo">⚡ DiscordForge</div>
+  <p class="footer-text">© 2024 DiscordForge | כל הזכויות שמורות | פלטפורמת הבוטים הפרימיום של ישראל</p>
+  <p class="footer-text" style="margin-top: 0.5rem;">📧 support@discordforge.il | 💬 Discord: DiscordForge</p>
+</footer>
+
+<!-- LOGIN MODAL -->
+<div class="modal-overlay" id="loginModal" onclick="if(event.target===this)closeModal('loginModal')">
+  <div class="modal">
+    <button class="modal-close" onclick="closeModal('loginModal')">✕</button>
+    <div class="modal-logo">⚡</div>
+    <h2>ברוך השב!</h2>
+    <p class="modal-sub">התחבר לחשבון DiscordForge שלך</p>
+    <div class="form-group">
+      <label>📧 אימייל</label>
+      <input type="email" id="loginEmail" placeholder="your@email.com">
+    </div>
+    <div class="form-group">
+      <label>🔒 סיסמה</label>
+      <input type="password" id="loginPassword" placeholder="הכנס סיסמה">
+    </div>
+    <button class="modal-submit" onclick="loginUser()">🚀 התחברות</button>
+    <p class="modal-switch">אין לך חשבון? <a onclick="closeModal('loginModal');openModal('registerModal')">הירשם עכשיו</a></p>
+  </div>
+</div>
+
+<!-- REGISTER MODAL -->
+<div class="modal-overlay" id="registerModal" onclick="if(event.target===this)closeModal('registerModal')">
+  <div class="modal">
+    <button class="modal-close" onclick="closeModal('registerModal')">✕</button>
+    <div class="modal-logo">🎮</div>
+    <h2>הצטרף ל-DiscordForge</h2>
+    <p class="modal-sub">צור חשבון חינמי ותתחיל לבנות שרת מדהים</p>
+    <div class="form-group">
+      <label>👤 שם משתמש</label>
+      <input type="text" id="regUsername" placeholder="SuperGamer123">
+    </div>
+    <div class="form-group">
+      <label>🎮 Discord ID</label>
+      <input type="text" id="regDiscordId" placeholder="123456789012345678">
+    </div>
+    <div class="form-group">
+      <label>📧 אימייל</label>
+      <input type="email" id="regEmail" placeholder="your@email.com">
+    </div>
+    <div class="form-group">
+      <label>🔒 סיסמה</label>
+      <input type="password" id="regPassword" placeholder="לפחות 6 תווים">
+    </div>
+    <button class="modal-submit" onclick="registerUser()">⚡ הירשם עכשיו</button>
+    <p class="modal-switch">כבר יש לך חשבון? <a onclick="closeModal('registerModal');openModal('loginModal')">התחבר</a></p>
+  </div>
+</div>
+
+<!-- PURCHASE MODAL -->
+<div class="modal-overlay" id="purchaseModal" onclick="if(event.target===this)closeModal('purchaseModal')">
+  <div class="modal">
+    <button class="modal-close" onclick="closeModal('purchaseModal')">✕</button>
+    <div class="modal-logo">🛒</div>
+    <h2>אישור רכישה</h2>
+    <p class="modal-sub">אתה עומד לרכוש:</p>
+    <div class="purchase-summary">
+      <div class="purchase-name" id="purchaseProductName"></div>
+      <div class="purchase-price-display" id="purchasePrice"></div>
+    </div>
+    <p style="color: var(--text-muted); font-size: 0.85rem; text-align: center; margin-bottom: 1rem;">
+      ⚡ לאחר הרכישה תקבל קישור מיידי להתקנה
+    </p>
+    <button class="modal-submit" id="confirmPurchaseBtn">💳 אשר רכישה</button>
+    <button class="btn btn-outline" style="width:100%; margin-top: 0.8rem; padding: 0.7rem;" onclick="closeModal('purchaseModal')">ביטול</button>
+  </div>
+</div>
+
+<!-- SUCCESS MODAL -->
+<div class="modal-overlay" id="successModal" onclick="if(event.target===this)closeModal('successModal')">
+  <div class="modal">
+    <button class="modal-close" onclick="closeModal('successModal')">✕</button>
+    <div class="success-icon">🎉</div>
+    <h2>רכישה הושלמה!</h2>
+    <p class="modal-sub">תודה רבה! הנה קישור ההתקנה שלך:</p>
+    <div class="download-box">
+      <strong id="downloadProductName" style="display:block; margin-bottom: 0.8rem;"></strong>
+      <a id="downloadLink" href="#" target="_blank" rel="noopener">🔗 לחץ כאן להתקנה</a>
+    </div>
+    <div class="purchase-id-badge">🎫 מזהה רכישה: <span id="purchaseId"></span></div>
+    <button class="modal-submit" onclick="closeModal('successModal')">✅ סגור</button>
+  </div>
+</div>
+
+</body>
+</html>
